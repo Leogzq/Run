@@ -28,6 +28,8 @@ struct Editor: View {
     @AppStorage("runSpeed") private var runSpeed = 15.0
     @AppStorage("runLoops") private var runLoops = 100
     @AppStorage("runFluctuate") private var runFluctuate = true
+    @AppStorage("runMode") private var runMode = "speed"
+    @AppStorage("runCadence") private var runCadence = 180.0
     @State private var importingRoute = false
     @State private var exportURL: URL?
     @AppStorage("savedRoutes") private var saved: Data = Data()
@@ -106,7 +108,7 @@ struct Editor: View {
                     Marker("终点", coordinate: last.coordinate).tint(.red)
                 }
                 if let cursor = device.confirmedPoint ?? cursor {
-                    Annotation("回放位置", coordinate: cursor.coordinate) {
+                    Annotation("设备已确认位置", coordinate: cursor.coordinate) {
                         Image(systemName: "location.circle.fill")
                             .font(.title).foregroundStyle(.white, .blue)
                             .background(.white, in: Circle())
@@ -141,6 +143,16 @@ struct Editor: View {
                 Button("保存", action: save).disabled(track.length <= 0)
             }.font(.subheadline)
             if mode == .run {
+                Picker("模拟方式", selection: $runMode) {
+                    Text("按速度").tag("speed")
+                    Text("按步频").tag("cadence")
+                }.pickerStyle(.segmented)
+                if runMode == "cadence" {
+                    HStack {
+                        Text("步频（步/分钟）")
+                        TextField("180", value: $runCadence, format: .number).keyboardType(.decimalPad)
+                    }
+                }
                 HStack {
                     Text("速度")
                     TextField("15", value: $runSpeed, format: .number)
@@ -156,7 +168,7 @@ struct Editor: View {
                     Button("选路线") { showRoutes = true }
                     Button(device.running || device.busy ? "停止模拟" : "开始模拟") {
                         if device.running || device.busy { device.stop() }
-                        else { device.play(current, speed: runSpeed, loops: runLoops, fluctuate: runFluctuate) }
+                        else { device.play(current, speed: runMode == "cadence" ? runCadence * 0.8 / 60 : runSpeed, loops: runLoops, fluctuate: runFluctuate) }
                     }.buttonStyle(.borderedProminent).disabled(current.points.count < 2)
                 }
             } else {

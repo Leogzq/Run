@@ -76,7 +76,7 @@ struct HomeView: View {
 
     private var tips: some View {
         ScrollView {
-            Text("先在绘制路线中搜索地点，开启绘制后点击地图添加点，保存后可在本地路线中重新编辑或导出。\n\n路线模拟需要本机配对文件、开发者模式和 LocalDevVPN。首次在电脑上生成 RPPairing 文件，传到手机后在设备配置中导入。连接 Wi-Fi 并开启 LocalDevVPN 后，再开始模拟。\n\n模拟运行时保持本应用在前台。停止后会向设备发送清除定位请求，确认失败时请检查手机定位，必要时重启。\n\n当前 iOS 重建版使用 Apple 地图，尚未接入原应用共享服务器。Android NDEF 跳转与 iOS NFC 接口不同，目前支持读取公开标签。步频模式及后台持续模拟仍待实现。")
+            Text("先在绘制路线中搜索地点，开启绘制后点击地图添加点，保存后可在本地路线中重新编辑或导出。\n\n路线模拟需要本机配对文件、开发者模式和 LocalDevVPN。首次在电脑上生成 RPPairing 文件，传到手机后在设备配置中导入。连接 Wi-Fi 并开启 LocalDevVPN 后，再开始模拟。\n\n模拟运行时保持本应用在前台。停止后会向设备发送清除定位请求，确认失败时请检查手机定位，必要时重启。\n\n当前 iOS 重建版使用 Apple 地图，尚未接入原应用共享服务器。Android NDEF 跳转与 iOS NFC 接口不同，目前支持读取公开标签。后台持续模拟仍待实现。")
                 .padding().frame(maxWidth: .infinity, alignment: .leading)
         }.navigationTitle("操作提示")
     }
