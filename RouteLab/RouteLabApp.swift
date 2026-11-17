@@ -1,11 +1,12 @@
 import Foundation
 import MapKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct RouteLabApp: App {
     var body: some Scene {
-        WindowGroup { Editor() }
+        WindowGroup { HomeView() }
     }
 }
 
@@ -19,7 +20,16 @@ private extension Point {
     }
 }
 
+enum EditorMode { case draw, run, library }
+
 struct Editor: View {
+    let mode: EditorMode
+    @EnvironmentObject private var device: DeviceSession
+    @AppStorage("runSpeed") private var runSpeed = 15.0
+    @AppStorage("runLoops") private var runLoops = 100
+    @AppStorage("runFluctuate") private var runFluctuate = true
+    @State private var importingRoute = false
+    @State private var exportURL: URL?
     @AppStorage("savedRoutes") private var saved: Data = Data()
     @Environment(\.scenePhase) private var phase
     @State private var routes: [Route] = []
@@ -27,7 +37,6 @@ struct Editor: View {
     @State private var position: MapCameraPosition = .automatic
     @State private var cursor: Point?
     @State private var run: Task<Void, Never>?
-    @State private var speed = 6.0
     @State private var distance = 0.0
     @State private var query = ""
     @State private var searching = false
@@ -38,7 +47,7 @@ struct Editor: View {
     private var track: Track { Track(current.points) }
 
     var body: some View {
-        NavigationStack {
+        Group {
             VStack(spacing: 0) {
                 HStack {
                     TextField("搜索地点", text: $query)
@@ -52,7 +61,7 @@ struct Editor: View {
                 map
                 controls
             }
-            .navigationTitle("路线工具")
+            .navigationTitle(mode == .run ? "路线模拟" : mode == .library ? "本地路线" : "绘制路线")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -67,8 +76,19 @@ struct Editor: View {
               message: { Text(message ?? "") }
             .onAppear {
                 routes = (try? JSONDecoder().decode([Route].self, from: saved)) ?? []
+                if mode == .library { showRoutes = true }
+                if mode == .run { addPoints = false }
             }
-            .onChange(of: phase) { _, value in if value != .active { stop() } }
+            .onChange(of: phase) { _, value in if value != .active { stop(); device.stop() } }
+            .fileImporter(isPresented: $importingRoute, allowedContentTypes: [.json, .data]) { result in
+                do {
+                    let url = try result.get()
+                    let access = url.startAccessingSecurityScopedResource()
+                    defer { if access { url.stopAccessingSecurityScopedResource() } }
+                    current = try RouteFiles.read(url)
+                    save()
+                } catch { message = error.localizedDescription }
+            }
         }
     }
 
@@ -85,7 +105,7 @@ struct Editor: View {
                 if let last = current.points.last, current.points.count >= 2 {
                     Marker("终点", coordinate: last.coordinate).tint(.red)
                 }
-                if let cursor {
+                if let cursor = device.confirmedPoint ?? cursor {
                     Annotation("回放位置", coordinate: cursor.coordinate) {
                         Image(systemName: "location.circle.fill")
                             .font(.title).foregroundStyle(.white, .blue)
@@ -94,7 +114,7 @@ struct Editor: View {
                 }
             }
             .onTapGesture { screen in
-                guard addPoints, run == nil, let c = proxy.convert(screen, from: .local) else { return }
+                guard addPoints, !device.running, !device.busy, let c = proxy.convert(screen, from: .local) else { return }
                 resetPlayback()
                 current.points.append(Point(c))
             }
@@ -104,7 +124,7 @@ struct Editor: View {
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("点击地图添加路线点", isOn: $addPoints)
-                .disabled(run != nil)
+                .disabled(device.running || device.busy)
             TextField("路线名称", text: $current.name)
                 .textFieldStyle(.roundedBorder)
             HStack {
@@ -113,25 +133,47 @@ struct Editor: View {
                 Button("撤销点") {
                     resetPlayback()
                     _ = current.points.popLast()
-                }.disabled(current.points.isEmpty || run != nil)
+                }.disabled(current.points.isEmpty || device.running || device.busy)
                 Button("新建") {
                     resetPlayback()
                     current = Route(name: "", points: [])
                 }
                 Button("保存", action: save).disabled(track.length <= 0)
             }.font(.subheadline)
-            HStack {
-                Text("速度 \(speed, specifier: "%.0f") 公里/小时").font(.subheadline)
-                Slider(value: $speed, in: 1...40, step: 1).disabled(run != nil)
+            if mode == .run {
+                HStack {
+                    Text("速度")
+                    TextField("15", value: $runSpeed, format: .number)
+                        .keyboardType(.decimalPad).textFieldStyle(.roundedBorder)
+                    Text("m/s")
+                    Text("循环")
+                    TextField("100", value: $runLoops, format: .number)
+                        .keyboardType(.numberPad).textFieldStyle(.roundedBorder)
+                }
+                Toggle("速度浮动", isOn: $runFluctuate)
+                Text(device.status).font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button("选路线") { showRoutes = true }
+                    Button(device.running || device.busy ? "停止模拟" : "开始模拟") {
+                        if device.running || device.busy { device.stop() }
+                        else { device.play(current, speed: runSpeed, loops: runLoops, fluctuate: runFluctuate) }
+                    }.buttonStyle(.borderedProminent).disabled(current.points.count < 2)
+                }
+            } else {
+                HStack {
+                    Button("闭合路线") {
+                        if let first = current.points.first, current.points.last != first {
+                            current.points.append(first)
+                        }
+                    }.disabled(current.points.count < 3)
+                    Button("导入路线") { importingRoute = true }
+                    Button("导出路线") {
+                        do { exportURL = try RouteFiles.write(current) }
+                        catch { message = error.localizedDescription }
+                    }.disabled(current.points.count < 2)
+                    if let exportURL { ShareLink("分享", item: exportURL) }
+                }.font(.subheadline)
             }
-            if track.length > 0 {
-                ProgressView(value: min(distance, track.length), total: track.length)
-            }
-            Button(run == nil ? "开始应用内回放" : "停止回放") {
-                if run == nil { play() } else { stop() }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(track.length <= 0)
         }
         .padding()
     }
@@ -203,24 +245,6 @@ struct Editor: View {
             saved = try JSONEncoder().encode(updated)
             routes = updated
         } catch { message = "路线保存失败。" }
-    }
-
-    private func play() {
-        let route = track
-        guard route.length > 0 else { return }
-        let rate = speed / 3.6
-        let start = ProcessInfo.processInfo.systemUptime
-        distance = 0
-        cursor = route.point(at: 0)
-        run = Task { @MainActor in
-            while !Task.isCancelled {
-                distance = min(route.length, (ProcessInfo.processInfo.systemUptime - start) * rate)
-                cursor = route.point(at: distance)
-                if distance >= route.length { run = nil; return }
-                do { try await Task.sleep(for: .milliseconds(100)) }
-                catch { return }
-            }
-        }
     }
 
     private func stop() {

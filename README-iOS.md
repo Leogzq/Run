@@ -1,13 +1,19 @@
-# 路线工具 · iOS 原型
+# iOS 重建测试版 0.2
 
-根据 Android APK 的界面及功能线索，用 SwiftUI 与 Apple MapKit 重建。要求 iOS 17 或更新版本。支持搜索地点、地图选点、撤销、保存与删除本地路线，以及按速度在地图内回放。地点搜索和底图由 Apple 地图提供。APK 中的 Android 原生库、第三方服务凭据及资源未随工程分发。
+目标设备 iPhone 15 Pro Max，iOS 26.1。界面依据用户 APK 的布局与配色重新实现。
 
-## 编译
+包含开始/我的首页、地图绘制、闭合路线、本地保存/编辑/删除、原 APK WGS84 路线 JSON 导入导出、速度和循环模拟参数、开发定位服务连接、配对记录导入、公开 NDEF 标签读取。
+定位使用 Waypoint 的开发服务连接代码，运行时需要本机配对记录、开发者模式、LocalDevVPN、Wi-Fi 和开发支持镜像。首次配对通过电脑上的 idevice_pair 完成，选择 RPPairing。配对凭据仅在设备本地保存，勿提交到仓库。
 
-- 本地有完整 Xcode：打开 `RouteLab.xcodeproj`，选择 RouteLab scheme 和 iOS 模拟器，按 Run。
-- 生成未签名 IPA：在装有 Xcode 的 Mac 上运行 `./build-unsigned.sh`，生成 `build/RouteLab-unsigned.ipa`。
-- GitHub Actions：将整个工程（包括隐藏的 `.github` 目录）推到有权限的仓库，默认分支为 main 时会自动构建，也可从 Actions 手动运行 **Build unsigned iOS IPA**。从运行页面下载同名构建产物，解压即可得到 IPA。首次推送工作流时，需要允许仓库运行 Actions，并具备创建工作流文件的权限。
+构建前运行 bash scripts/fetch-idevice.sh，然后运行 ./build-unsigned.sh。未签名 IPA 在 build/。GitHub Actions 自动执行这两个步骤。安装需要兼容的签名方案，NFC 读取需要签名配置支持 NFC entitlement。
 
-未签名 IPA 用于验证封包，无法直接安装到 iPhone。要真机测试，打开 Xcode，在 Signing & Capabilities 选择自己的团队和唯一 Bundle ID，然后选择设备运行。用于分发的 IPA 需要相应签名和配置描述文件。
+仍待完成/验证：
+- iPhone 15 Pro Max iOS 26.1 真机连接、定位更新与恢复。
+- 原版步频模式、共享路线服务、隐私共享、路线录制、后台持续运行。
+- Android NFC Intent 的等效 iOS 实现。
+- 仅含百度坐标的旧路线文件转换。
+- 原地图为百度地图，本版使用 Apple MapKit。
+- 尚未完成像素级截图对比，当前为原布局结构与颜色的重建。
+编译成功不等同上述功能已完成或真机验证通过。
 
-回放只更新本应用内的地图标记，不替换设备定位。不包含 NFC 模拟、原应用的共享路线服务或历史数据。当前工程尚待完整 Xcode 编译和运行验证。
+源码及许可证位于本仓库，开源组件见 THIRD_PARTY_NOTICES.md。

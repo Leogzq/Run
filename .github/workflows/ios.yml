@@ -11,6 +11,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch pinned developer-service library
+        run: bash scripts/fetch-idevice.sh
       - name: Build for iPhone
         run: ./build-unsigned.sh
       - uses: actions/upload-artifact@v4
